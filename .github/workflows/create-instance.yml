@@ -11,33 +11,28 @@ jobs:
       - name: Install OCI CLI
         run: pip install oci-cli
 
-      - name: Configure OCI CLI
+      - name: Write private key
         env:
           KEY: ${{ secrets.OCI_KEY_FILE_CONTENT }}
-          OCI_USER: ${{ secrets.OCI_USER_ID }}
-          OCI_FP: ${{ secrets.OCI_KEY_FINGERPRINT }}
-          OCI_TEN: ${{ secrets.OCI_TENANCY_ID }}
-          OCI_REG: ${{ secrets.OCI_REGION }}
         run: |
           mkdir -p ~/.oci
           echo "$KEY" > ~/.oci/key.pem
           chmod 600 ~/.oci/key.pem
-          echo "[DEFAULT]" > ~/.oci/config
-          echo "user=$OCI_USER" >> ~/.oci/config
-          echo "fingerprint=$OCI_FP" >> ~/.oci/config
-          echo "tenancy=$OCI_TEN" >> ~/.oci/config
-          echo "region=$OCI_REG" >> ~/.oci/config
-          echo "key_file=/home/runner/.oci/key.pem" >> ~/.oci/config
-          chmod 600 ~/.oci/config
-          cat ~/.oci/config
 
       - name: Check existing instances
         id: check
+        env:
+          OCI_CLI_USER: ${{ secrets.OCI_USER_ID }}
+          OCI_CLI_FINGERPRINT: ${{ secrets.OCI_KEY_FINGERPRINT }}
+          OCI_CLI_TENANCY: ${{ secrets.OCI_TENANCY_ID }}
+          OCI_CLI_REGION: ${{ secrets.OCI_REGION }}
+          OCI_CLI_KEY_FILE: /home/runner/.oci/key.pem
+          OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING: True
+          SUPPRESS_LABEL_WARNING: True
         run: |
           set +e
           oci iam region list
           AUTH_RESULT=$?
-          echo "Auth result: $AUTH_RESULT"
           if [ $AUTH_RESULT -ne 0 ]; then
             echo "Authentication failed"
             exit 1
@@ -52,6 +47,14 @@ jobs:
 
       - name: Create instance
         if: steps.check.outputs.count == '0'
+        env:
+          OCI_CLI_USER: ${{ secrets.OCI_USER_ID }}
+          OCI_CLI_FINGERPRINT: ${{ secrets.OCI_KEY_FINGERPRINT }}
+          OCI_CLI_TENANCY: ${{ secrets.OCI_TENANCY_ID }}
+          OCI_CLI_REGION: ${{ secrets.OCI_REGION }}
+          OCI_CLI_KEY_FILE: /home/runner/.oci/key.pem
+          OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING: True
+          SUPPRESS_LABEL_WARNING: True
         run: |
           for AD in "Wbws:US-ASHBURN-AD-1" "Wbws:US-ASHBURN-AD-2" "Wbws:US-ASHBURN-AD-3"; do
             echo "Trying $AD..."
