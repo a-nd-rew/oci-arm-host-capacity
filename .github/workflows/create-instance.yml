@@ -19,9 +19,13 @@ jobs:
         run: composer update --prefer-dist --no-progress
 
       - name: Write private key
+        env:
+          KEY: ${{ secrets.OCI_KEY_FILE_CONTENT }}
         run: |
-          echo "${{ secrets.OCI_KEY_FILE_CONTENT }}" > /tmp/oci.pem
+          echo "$KEY" > /tmp/oci.pem
           chmod 600 /tmp/oci.pem
+          echo "Lines in key file: $(wc -l < /tmp/oci.pem)"
+          head -1 /tmp/oci.pem
 
       - name: Run instance creation
         run: php index.php
@@ -31,11 +35,11 @@ jobs:
           OCI_TENANCY_ID: ${{ secrets.OCI_TENANCY_ID }}
           OCI_KEY_FINGERPRINT: ${{ secrets.OCI_KEY_FINGERPRINT }}
           OCI_PRIVATE_KEY_FILENAME: /tmp/oci.pem
-          OCI_AVAILABILITY_DOMAIN: ${{ secrets.OCI_AVAILABILITY_DOMAIN }}
           OCI_SUBNET_ID: ${{ secrets.OCI_SUBNET_ID }}
           OCI_IMAGE_ID: ${{ secrets.OCI_IMAGE_ID }}
-          OCI_OCPUS: ${{ secrets.OCI_OCPUS }}
-          OCI_MEMORY_IN_GBS: ${{ secrets.OCI_MEMORY_IN_GBS }}
-          OCI_SHAPE: ${{ secrets.OCI_SHAPE }}
-          OCI_MAX_INSTANCES: ${{ secrets.OCI_MAX_INSTANCES }}
+          OCI_OCPUS: 2
+          OCI_MEMORY_IN_GBS: 12
+          OCI_SHAPE: VM.Standard.A1.Flex
+          OCI_MAX_INSTANCES: 1
+          OCI_AVAILABILITY_DOMAIN: ""
           OCI_SSH_PUBLIC_KEY: ${{ secrets.OCI_SSH_PUBLIC_KEY }}
