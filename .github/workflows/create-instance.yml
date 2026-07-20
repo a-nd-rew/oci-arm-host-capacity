@@ -14,18 +14,22 @@ jobs:
       - name: Configure OCI CLI
         env:
           KEY: ${{ secrets.OCI_KEY_FILE_CONTENT }}
+          OCI_USER: ${{ secrets.OCI_USER_ID }}
+          OCI_FP: ${{ secrets.OCI_KEY_FINGERPRINT }}
+          OCI_TEN: ${{ secrets.OCI_TENANCY_ID }}
+          OCI_REG: ${{ secrets.OCI_REGION }}
         run: |
           mkdir -p ~/.oci
           echo "$KEY" > ~/.oci/key.pem
           chmod 600 ~/.oci/key.pem
-          cat > ~/.oci/config << EOF
-          [DEFAULT]
-          user=${{ secrets.OCI_USER_ID }}
-          fingerprint=${{ secrets.OCI_KEY_FINGERPRINT }}
-          tenancy=${{ secrets.OCI_TENANCY_ID }}
-          region=${{ secrets.OCI_REGION }}
-          key_file=/home/runner/.oci/key.pem
-          EOF
+          echo "[DEFAULT]" > ~/.oci/config
+          echo "user=$OCI_USER" >> ~/.oci/config
+          echo "fingerprint=$OCI_FP" >> ~/.oci/config
+          echo "tenancy=$OCI_TEN" >> ~/.oci/config
+          echo "region=$OCI_REG" >> ~/.oci/config
+          echo "key_file=/home/runner/.oci/key.pem" >> ~/.oci/config
+          chmod 600 ~/.oci/config
+          cat ~/.oci/config
 
       - name: Check existing instances
         id: check
