@@ -8,38 +8,55 @@ jobs:
   create:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Install OCI CLI
+        run: pip install oci-cli
 
-      - name: Install PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.3'
-
-      - name: Install dependencies
-        run: composer update --prefer-dist --no-progress
-
-      - name: Write private key
+      - name: Configure OCI CLI
         env:
           KEY: ${{ secrets.OCI_KEY_FILE_CONTENT }}
         run: |
-          echo "$KEY" > /tmp/oci.pem
-          chmod 600 /tmp/oci.pem
-          echo "Lines in key file: $(wc -l < /tmp/oci.pem)"
-          head -1 /tmp/oci.pem
+          mkdir -p ~/.oci
+          echo "$KEY" > ~/.oci/key.pem
+          chmod 600 ~/.oci/key.pem
+          cat > ~/.oci/config << EOF
+          [DEFAULT]
+          user=${{ secrets.OCI_USER_ID }}
+          fingerprint=${{ secrets.OCI_KEY_FINGERPRINT }}
+          tenancy=${{ secrets.OCI_TENANCY_ID }}
+          region=${{ secrets.OCI_REGION }}
+          key_file=/home/runner/.oci/key.pem
+          EOF
 
-      - name: Run instance creation
-        run: php index.php
-        env:
-          OCI_REGION: ${{ secrets.OCI_REGION }}
-          OCI_USER_ID: ${{ secrets.OCI_USER_ID }}
-          OCI_TENANCY_ID: ${{ secrets.OCI_TENANCY_ID }}
-          OCI_KEY_FINGERPRINT: ${{ secrets.OCI_KEY_FINGERPRINT }}
-          OCI_PRIVATE_KEY_FILENAME: /tmp/oci.pem
-          OCI_SUBNET_ID: ${{ secrets.OCI_SUBNET_ID }}
-          OCI_IMAGE_ID: ${{ secrets.OCI_IMAGE_ID }}
-          OCI_OCPUS: 2
-          OCI_MEMORY_IN_GBS: 12
-          OCI_SHAPE: VM.Standard.A1.Flex
-          OCI_MAX_INSTANCES: 1
-          OCI_AVAILABILITY_DOMAIN: ""
-          OCI_SSH_PUBLIC_KEY: ${{ secrets.OCI_SSH_PUBLIC_KEY }}
+      - name: Check existing instances
+        id: check
+        run: |
+          COUNT=$(oci compute instance list \
+            --compartment-id "${{ secrets.OCI_TENANCY_ID }}" \
+            --lifecycle-state RUNNING \
+            --query 'length(data)' 2>&1)
+          echo "Running instances: $COUNT"
+          echo "count=$COUNT" >> $GITHUB_OUTPUT
+
+      - name: Create instance
+        if: steps.check.outputs.count == '0'
+        run: |
+          for AD in "Wbws:US-ASHBURN-AD-1" "Wbws:US-ASHBURN-AD-2" "Wbws:US-ASHBURN-AD-3"; do
+            echo "Trying $AD..."
+            RESULT=$(oci compute instance launch \
+              --availability-domain "$AD" \
+              --compartment-id "${{ secrets.OCI_TENANCY_ID }}" \
+              --shape "VM.Standard.A1.Flex" \
+              --shape-config '{"ocpus":2,"memoryInGBs":12}' \
+              --image-id "${{ secrets.OCI_IMAGE_ID }}" \
+              --subnet-id "${{ secrets.OCI_SUBNET_ID }}" \
+              --metadata "{\"ssh_authorized_keys\":\"${{ secrets.OCI_SSH_PUBLIC_KEY }}\"}" \
+              --assign-public-ip true \
+              --display-name "stack-hack" \
+              --wait-for-state RUNNING 2>&1 || true)
+            if echo "$RESULT" | grep -q '"id": "ocid1.instance'; then
+              echo "Instance created successfully in $AD!"
+              exit 0
+            fi
+            echo "$RESULT" | tail -5
+          done
+          echo "All ADs out of capacity, will retry."
