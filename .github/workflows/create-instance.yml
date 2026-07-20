@@ -76,3 +76,4 @@ jobs:
             echo "$RESULT" | tail -5
           done
           echo "All ADs out of capacity, will retry next run."
+          exit 1
