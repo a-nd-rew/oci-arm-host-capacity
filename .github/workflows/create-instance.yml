@@ -30,12 +30,21 @@ jobs:
       - name: Check existing instances
         id: check
         run: |
+          set +e
+          oci iam region list
+          AUTH_RESULT=$?
+          echo "Auth result: $AUTH_RESULT"
+          if [ $AUTH_RESULT -ne 0 ]; then
+            echo "Authentication failed"
+            exit 1
+          fi
           COUNT=$(oci compute instance list \
             --compartment-id "${{ secrets.OCI_TENANCY_ID }}" \
             --lifecycle-state RUNNING \
-            --query 'length(data)' 2>&1)
+            --query 'length(data)' \
+            --output raw)
           echo "Running instances: $COUNT"
-          echo "count=$COUNT" >> $GITHUB_OUTPUT
+          echo "count=${COUNT:-0}" >> $GITHUB_OUTPUT
 
       - name: Create instance
         if: steps.check.outputs.count == '0'
@@ -51,12 +60,12 @@ jobs:
               --subnet-id "${{ secrets.OCI_SUBNET_ID }}" \
               --metadata "{\"ssh_authorized_keys\":\"${{ secrets.OCI_SSH_PUBLIC_KEY }}\"}" \
               --assign-public-ip true \
-              --display-name "stack-hack" \
-              --wait-for-state RUNNING 2>&1 || true)
+              --display-name "stack-hack" 2>&1 || true)
             if echo "$RESULT" | grep -q '"id": "ocid1.instance'; then
               echo "Instance created successfully in $AD!"
+              echo "$RESULT"
               exit 0
             fi
             echo "$RESULT" | tail -5
           done
-          echo "All ADs out of capacity, will retry."
+          echo "All ADs out of capacity, will retry next run."
